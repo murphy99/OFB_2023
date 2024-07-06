@@ -1,0 +1,767 @@
+---
+title: "OFB_Pre-processing Neighbourhood Survey"
+author: "Eileen Murphy"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Read in OFB Neighborhood Survey 
+
+```{r}
+library(readr)
+
+OFB_wide <- read.csv("OFB_2023/OFB_neighbour_survey_v1.0/neighbour_survey_clean-2024-06-14.csv", stringsAsFactors = FALSE)
+
+## Change id to numeric index
+
+OFB_wide <- OFB_wide |> 
+  mutate(id = as.integer(substring(id,3,8)))
+
+```
+
+### Validate Data Frame
+
+#### Checking for duplicates and invalid keys (id)  
+
+```{r}
+
+paste("No Duplicates: ", !anyDuplicated(OFB_wide$id))
+paste("rows", nrow(OFB_wide))
+paste("columns", ncol(OFB_wide))
+
+print("Duplicate Ids:")
+print(OFB_wide$id[duplicated(OFB_wide$id)])
+
+```
+
+### Deleted duplicates and any NA's still in key fields 
+
+```{r}
+
+library(dplyr)
+
+# Deletes NA values in key id field
+
+OFB_wide <- OFB_wide |> 
+  filter(!is.na(id)) 
+
+OFB_wide <- OFB_wide[!duplicated(OFB_wide$id), ]
+
+```
+
+### Verifying Duplicate deletions - should only be 4 rows (not 8)
+
+```{r}
+OFB_wide |>
+  select(id) |>
+  filter(id %in% c(3980, 3983, 3981, 3982))
+```
+
+### Verification there are no more duplicates
+
+```{r}
+
+print("Duplicate Ids:")
+print(OFB_wide$id[duplicated(OFB_wide$id)])
+
+```
+
+### Checking for NA's in ind field - should be zero
+
+```{r}
+
+#colSums(is.na(OFB_wide ))
+
+#better way
+sum(is.na(OFB_wide[, c("id")]) )
+
+```
+
+### Reshape neighborhood data from wide to long
+
+```{r}
+library(tidyr)
+
+OFB_long <- OFB_wide %>%
+  pivot_longer(
+    cols = starts_with("q0"),     
+    names_to = "Question",              
+    values_to = "Response"                
+  )
+
+library(dplyr)
+
+OFB_long |> arrange(Question)
+print(OFB_long)
+
+```
+### Making sure OFB_long is formatted correctly
+
+```{r}
+str(OFB_long)
+```
+### View responses to see any inconsitencies
+
+```{r  results='hide'}
+OFB_long |> distinct(Response)
+```
+### Fix inconsistent reponses
+
+```{r}
+library(stringr)
+OFB_long_fixed <- OFB_long |> 
+  mutate(Response = ifelse(str_detect(Response, "^[:upper:]+$"), Response,str_to_title(Response))) 
+
+```
+
+### Exploring Univariate Data
+
+### Top 20 Food Banks in Ottawa
+
+Because this is a text field, there are many missing values unfortunately. Here we pull up the top 20 Food Banks that clients listed.
+
+```{r echo = FALSE}
+library(ggplot2)
+ 
+OFB_long_q012_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q012") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) |>
+   mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+title <- questions["q012"]  
+  
+ggplot(OFB_long_q012_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    ggtitle(title) +
+    theme_bw()
+  
+
+```
+ 
+### As we can see, there are many NA's in this text field   
+
+```{r echo = FALSE}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Calculate the proportions for the pie chart
+OFB_long_q012_results <- OFB_long_q012_results %>%
+  mutate(proportion = count / sum(count))
+
+# Create the pie chart
+ggplot(OFB_long_q012_results, aes(x="", y=proportion, fill=Response)) + 
+  geom_bar(stat="identity", width=1) +
+  coord_polar(theta="y") +
+  theme_void() +
+  theme(legend.position="right") +
+  labs(fill="Response")
+```
+
+### Language of Survey
+
+```{r echo = FALSE}
+
+library(ggplot2)
+
+OFB_long_q001_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q001") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) |>
+   mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q001_results, aes(x=Response, y=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+  
+
+```
+
+### Is income enough to meet food needs
+
+#### Personal income is not enough to meet food needs for most people. 
+
+```{r echo = FALSE}
+
+library(ggplot2)
+
+OFB_long_q002_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q002") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) |>
+   mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q002_results, aes(x=Response, y=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+  
+
+
+```
+
+
+### When was using the Food Bank the first time
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q009_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q009") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) |>
+   mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q009_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+
+```
+
+### How often going to a food bank
+
+```{r echo = FALSE}
+
+library(ggplot2)
+
+OFB_long_q010_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q010") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) |>
+   mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q010_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+
+```
+
+### Age
+
+```{r echo = FALSE}
+
+library(ggplot2)
+
+OFB_long_q025_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q025") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q025_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+
+```
+### Pregnant
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q022_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q022") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q022_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+```
+
+### How many in household  
+
+Most respondents are from households between 2-4 people.
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q026_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q026") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q026_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+
+
+```
+
+### Children
+
+Most respondents indicated that they have children.
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q027_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q027") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q027_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+
+
+```
+
+### How long in Canada
+
+Most recipients of the Food Bank are Canadian Born.
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q037_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q037") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q037_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+```
+
+### Gender
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q036a_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q036a") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q036a_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+
+
+```
+
+### How many years ago you started using the food bank
+
+Most of the clients using the food bank have started between 1-4 years ago. There has been a decrease of new clients in the last year. 
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q009_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q009") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q009_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+
+
+```
+
+### Food Insecurity in last 12 months
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q005_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q005") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q005_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+```
+
+### How often visiting a food program that is not a food bank
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q011a_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q011a") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q011a_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+```
+
+### How long does it take you to get to a food bank
+
+Most clients can reach the food bank within the hour from leaving their home.  
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q015_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q015") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q015_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+```
+
+### Status in Canada
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q035a_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q035a") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+
+  ggplot(OFB_long_q035a_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+```
+### Current living situation
+
+```{r echo = FALSE}
+library(ggplot2)
+
+OFB_long_q040a_results <- OFB_long_fixed |>
+  select(-id) |>
+  filter (Question %in% "q040a") |>
+  group_by(Response) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  top_n(20, wt = count) 
+   #mutate(Response = factor(Response, levels = Response[order(count)]))
+  
+ggplot(OFB_long_q040a_results, aes(y=Response, x=count))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+  
+
+```
+Based on the format of the question number, we are creating factor, boolean, and text fields datasets. The factor and boolean datasets are merged and the text fields are left out for privacy and processing speed reasons for now. 
+
+### Extracting and converting into factor, boolean, and text fields
+
+```{r}
+
+## Identify text fields from table and create vector
+
+text_fields = c("q011b","q012"
+                         ,"q014h"
+                         ,"q016f"
+                         ,"q017k"
+                         ,"q018"
+                         ,"q021"
+                         ,"q023f"
+                         ,"q024i"
+                         ,"q029"
+                         ,"q030"
+                         ,"q031"
+                         ,"q032"
+                         ,"q035b"
+                         ,"q036"
+                         ,"q038k"
+                         ,"q039i"
+                         ,"q040b"
+                         ,"q042"
+                         )
+
+# Creates vector of fields that are factors (excemptions) rather than boolean fields
+
+factor_fields <- c("q011a"
+                   ,"q035a"
+                   ,"q036a"
+                   ,"q040a"
+                   ) #the exceptions
+
+
+# Creating OFB_long_text dataset
+
+OFB_long_text <- OFB_long_fixed |>
+  filter(Question %in% text_fields
+                         )
+ 
+# Creates table with only Boolean values minus text and factor fields
+
+OFB_long_boolean <- OFB_long_fixed |>
+  filter(str_count(trimws(Question)) > 4 ) |>
+  filter(!(Question %in% text_fields)) |>
+  filter(!(Question %in% factor_fields)) 
+
+# Extracts all boolean responses and converts them to boolean values
+
+OFB_long_boolean <- OFB_long_boolean |>
+  mutate(Response=ifelse(!is.na(Response), 1, NA ))
+
+OFB_long_boolean <- OFB_long_boolean |> mutate(Response = as.integer(Response))
+
+# Extracts all factor fields and factors the fields
+
+OFB_long_factor <- OFB_long_fixed |> 
+  filter(str_count(trimws(Question)) <= 4 | Question %in% factor_fields ) |>
+  filter(!(Question %in% text_fields))
+  
+
+OFB_long_factor <- OFB_long_factor |> mutate(Response = as.factor(Response))
+
+# Extracts all comment(text) fields
+
+OFB_long_text <- OFB_long_fixed |>
+  filter(Question %in% text_fields)
+
+OFB_wide_boolean <- OFB_long_boolean %>%
+  pivot_wider(names_from = Question, values_from = Response)
+
+OFB_wide_factor <-  OFB_long_factor %>%
+  pivot_wider(names_from = Question, values_from = Response)
+
+```
+
+### Merging OFB_wide_factor and OFB_wide_boolean 
+
+```{r}
+# Convert all OFB_longs to wide then cbind them together
+
+## Convert Factors to wide
+
+
+OFB_wide_factor <- OFB_long_factor %>%
+  pivot_wider(names_from = Question, values_from = Response)
+
+### Convert Boolean to wide
+
+# Convert Boolean NA's to 0's
+
+OFB_long_boolean <- OFB_long_boolean |>
+  mutate(Response=ifelse(is.na(Response), 0, Response))
+
+OFB_wide_boolean <- OFB_long_boolean %>%
+  pivot_wider(names_from = Question, values_from = Response)
+
+
+
+OFB_wide <- merge(OFB_wide_factor, OFB_wide_boolean)
+
+```
+
+### Aggregating using OFB_long_boolean
+
+```{r}
+library(dplyr)
+
+OFB_long_boolean |> 
+  select(-id) |>
+   mutate(Response=ifelse(is.na(Response), 0, Response)) |>
+   group_by(Question, Response) |>
+   filter(Response != 0) |>
+   summarise(count = n())
+  
+```
+Calculate Food Insecurity
+Ref: https://www.ers.usda.gov/media/8282/short2012.pdf
+
+### Calculating Food Status Score
+Used factor levels to differentiate between affirmative and not.
+
+```{r}
+
+food_security <- OFB_wide_factor |>
+  select(id, q003, q004, q005, q006, q007, q008)  
+  
+###q003
+
+food_security$q003 <- factor(food_security$q003, exclude=c("Prefer Not To Answer", "Don't Know"), levels=c("Never True", "Often True", "Sometimes True")) 
+
+###q004
+  
+food_security$q004 <- factor(food_security$q004, exclude=c("Prefer Not To Answer", "Don't Know"), levels=c("Never True", "Often True", "Sometimes True")) 
+
+###q005
+
+food_security$q005 <- factor(food_security$q005, exclude=c("Don't Know", "Prefer Not To Answer"), levels=c("No","Yes"))
+       
+###q006
+
+food_security$q006 <- factor(food_security$q006, exclude=c("Don't Know","Prefer Not To Answer"), levels=c("Did Not Happen", "Only 1 or 2 Months", "Some Months But Not Every Month", "Almost Every Month"))
+
+###q007
+
+food_security$q007 <- factor(food_security$q007, exclude=c("Don't Know", "Prefer Not To Answer"), levels=c("No", "Yes"))
+
+###q008
+
+food_security$q008 <- factor(food_security$q008, exclude=c("Don't Know", "Prefer Not To Answer"), levels=c("No", "Yes"))
+
+food_security <- food_security |> 
+  mutate(q003_ = ifelse(is.na(q003),0,1),
+         q004_ = ifelse(is.na(q004),0,1),
+         q005_ = ifelse(q005 == "No", 0,1),
+         q006_ = ifelse(q006 == "Did Not Happen", 0, 1),
+         q007_ = ifelse(q007 == "No",0,1),
+         q008_ = ifelse(q008 == "No",0,1))
+
+#Convert NAs to 0 for calc
+
+food_security <- food_security |>
+  mutate(q003_=ifelse(is.na(q003_), 0, q003_),
+        q004_=ifelse(is.na(q004_), 0, q004_),
+        q005_=ifelse(is.na(q005_), 0, q005_),
+        q006_=ifelse(is.na(q006_), 0, q006_),
+        q007_=ifelse(is.na(q007_), 0, q007_),
+        q008_=ifelse(is.na(q008_), 0, q008_))
+
+#Sum up values for food security calculation
+food_security <- food_security |>
+  mutate(FSC=q003_ + 
+            q004_ +
+            q005_ +
+            q006_ +
+            q007_ + 
+            q008_)
+
+```
+
+### Create FSC_Calc just using required fields
+
+```{r}
+FSC_Calc <- food_security |>
+  select(id, FSC)
+```
+Food security status is assigned as follows:  
+ Raw score 0-1—High or marginal food security  
+ Raw score 2-4—Low food security  
+ Raw score 5-6—Very low food security  
+
+### Creating Food Security Status from FSC score
+
+```{r}
+FSC_Calc <- FSC_Calc |> 
+  mutate(FS_Status = case_when(FSC >= 5 ~ "Very low food security", 
+         between (FSC,2,4) ~ "Low food security",
+         between (FSC,0,1) ~ "High or marginal food security"))
+         
+```
+
+### Food Security Status
+
+```{r echo = FALSE}
+library(ggplot2)
+
+FSS <- FSC_Calc |>
+  select(-id) |>
+  group_by(FS_Status) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) 
+  
+  
+ggplot(FSS, aes(y=count , x=FS_Status))  + 
+  geom_bar(stat = "identity") +
+    theme_bw()
+  
+```
+
+### Finishing up - Update OFB_wide for analysis
+
+```{r}
+
+OFB_wide <- merge(OFB_wide, FSC_Calc)
+
+```
+ 
+### New OFB_wide contains only factors and booleans not text fields
+
+```{r}
+paste("Duplicates: ", anyDuplicated(OFB_wide$id))
+paste("rows", nrow(OFB_wide))
+paste("columns", ncol(OFB_wide))
+
+```
+
+### Write to csv file - if needed
+
+```{r}
+#write_csv2(OFB_wide, "OFB_wide.csv")
+```
+
+
+
+

@@ -1,0 +1,38 @@
+---
+title: "OFB_Data_Dictionary"
+author: "Eileen Murphy"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+questions <- c("q001"="Language of survey",
+               "q002"="Is your income enough to meet your food needs?",
+               "q003"= "How often did the following occur in the last 12 months",
+               "q012"="Which food bank do you visit the most often?"
+)
+
+questions["q012"]
+
+
+
+
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
