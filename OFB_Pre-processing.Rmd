@@ -607,6 +607,54 @@ OFB_wide_factor <-  OFB_long_factor %>%
 OFB_wide_factor <- OFB_long_factor %>%
   pivot_wider(names_from = Question, values_from = Response)
 
+
+#Order factors where appropriate
+OFB_wide_factor$q025 <- factor(OFB_wide_factor$q025, levels=c("18-20",
+                      "21-30",
+                      "31-40",
+                      "41-50",
+                      "51-60",
+                      "61-70",
+                      "Over 70",
+                      "Prefer Not To Answer"), 
+                      ordered = TRUE)
+
+
+
+OFB_wide_factor$q009 <- factor(OFB_wide_factor$q009, levels=c("Less Than 1 Year Ago",
+                     "1 To 2 Years Ago",
+                     "3 To 4 Years Ago",
+                     "5 To 10 Years Ago",
+                     "More Than 10 Years Ago",
+                     "Prefer Not To Answer"), ordered = TRUE)
+
+
+OFB_wide_factor$q037<- factor(OFB_wide_factor$q037, levels=c(
+                     "Less Than 1 Year",
+                     "1-4 Years",
+                     "5-9 Years",
+                     "10 Or More Years",
+                     "Canadian Born",
+                     "Prefer Not To Answer",
+                     "Not Applicable"), ordered = TRUE)
+
+OFB_wide_factor$q010<- factor(OFB_wide_factor$q010, levels=c("Less Than 1 Year Ago",
+                     "Less Than Twice A Year",
+                     "Every 6 Months",
+                     "Every Two Months",
+                     "Once Per Month",
+                     "Two Times Per Month",
+                     "Prefer Not To Answer",
+                     "Other"), ordered = TRUE)
+
+
+OFB_wide_factor$q013<- factor(OFB_wide_factor$q013, levels=c("Don't Visit Every Month",
+            "One",
+            "2 To 3",
+            "More Than 4",
+            "None Of The Above",
+            "Prefer Not To Answer", ordered = TRUE))
+
 ### Convert Boolean to wide
 
 # Convert Boolean NA's to 0's
@@ -734,9 +782,14 @@ FSS <- FSC_Calc |>
   
   
 ggplot(FSS, aes(y=count , x=FS_Status))  + 
-  geom_bar(stat = "identity") +
-    theme_bw()
-  
+  geom_bar(stat = "identity",width=0.8, fill="steelblue") +
+    geom_text(aes(label=count), vjust=-0.3, size=3.5)+
+  ggtitle("Food Security Status") + 
+  xlab("Food Security Status Score") +
+  ylab("Count") +
+  theme_minimal()
+
+
 ```
 
 ### Finishing up - Update OFB_wide for analysis
@@ -759,7 +812,7 @@ paste("columns", ncol(OFB_wide))
 ### Write to csv file - if needed
 
 ```{r}
-#write_csv2(OFB_wide, "OFB_wide.csv")
+write_csv2(OFB_wide, "OFB_wide.csv")
 ```
 
 
