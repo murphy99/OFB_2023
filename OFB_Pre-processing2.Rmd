@@ -1,0 +1,149 @@
+---
+title: "OFB_Pre-processing2.Rmd"
+author: "Eileen Murphy"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r setup, include=TRUE}
+
+source("OFB_Pre-processing.R", echo = TRUE, local= knitr::knit_global())
+
+```
+
+   
+Calculate Food Insecurity
+Ref: https://www.ers.usda.gov/media/8282/short2012.pdf
+
+### Calculating Food Status Score
+Used factor levels to differentiate between affirmative and not.
+
+```{r}
+
+food_security <- OFB_wide |>
+  select(id, q003, q004, q005, q006, q007, q008)  
+  
+###q003
+
+food_security$q003 <- factor(food_security$q003, exclude=c("Prefer Not To Answer", "Don't Know"), levels=c("Never True", "Often True", "Sometimes True")) 
+
+###q004
+  
+food_security$q004 <- factor(food_security$q004, exclude=c("Prefer Not To Answer", "Don't Know"), levels=c("Never True", "Often True", "Sometimes True")) 
+
+###q005
+
+food_security$q005 <- factor(food_security$q005, exclude=c("Don't Know", "Prefer Not To Answer"), levels=c("No","Yes"))
+       
+###q006
+
+food_security$q006 <- factor(food_security$q006, exclude=c("Don't Know","Prefer Not To Answer"), levels=c("Did Not Happen", "Only 1 or 2 Months", "Some Months But Not Every Month", "Almost Every Month"))
+
+###q007
+
+food_security$q007 <- factor(food_security$q007, exclude=c("Don't Know", "Prefer Not To Answer"), levels=c("No", "Yes"))
+
+###q008
+
+food_security$q008 <- factor(food_security$q008, exclude=c("Don't Know", "Prefer Not To Answer"), levels=c("No", "Yes"))
+
+food_security <- food_security |> 
+  mutate(q003_ = ifelse(is.na(q003),0,1),
+         q004_ = ifelse(is.na(q004),0,1),
+         q005_ = ifelse(q005 == "No", 0,1),
+         q006_ = ifelse(q006 == "Did Not Happen", 0, 1),
+         q007_ = ifelse(q007 == "No",0,1),
+         q008_ = ifelse(q008 == "No",0,1))
+
+#Convert NAs to 0 for calc
+
+food_security <- food_security |>
+  mutate(q003_=ifelse(is.na(q003_), 0, q003_),
+        q004_=ifelse(is.na(q004_), 0, q004_),
+        q005_=ifelse(is.na(q005_), 0, q005_),
+        q006_=ifelse(is.na(q006_), 0, q006_),
+        q007_=ifelse(is.na(q007_), 0, q007_),
+        q008_=ifelse(is.na(q008_), 0, q008_))
+
+#Sum up values for food security calculation
+food_security <- food_security |>
+  mutate(FSC=q003_ + 
+            q004_ +
+            q005_ +
+            q006_ +
+            q007_ + 
+            q008_)
+
+```
+
+### Create FSC_Calc just using required fields
+
+```{r}
+FSC_Calc <- food_security |>
+  select(id, FSC)
+```
+Food security status is assigned as follows:  
+ Raw score 0-1—High or marginal food security  
+ Raw score 2-4—Low food security  
+ Raw score 5-6—Very low food security  
+
+### Creating Food Security Status from FSC score
+
+```{r}
+FSC_Calc <- FSC_Calc |> 
+  mutate(FS_Status = case_when(FSC >= 5 ~ "Very low food security", 
+         between (FSC,2,4) ~ "Low food security",
+         between (FSC,0,1) ~ "High or marginal food security"))
+         
+```
+
+### Food Security Status
+
+```{r echo = FALSE}
+library(ggplot2)
+
+FSS <- FSC_Calc |>
+  select(-id) |>
+  group_by(FS_Status) %>%
+  summarise(count = n()) |>
+  arrange(desc(count)) 
+  
+  
+ggplot(FSS, aes(y=count , x=FS_Status))  + 
+  geom_bar(stat = "identity",width=0.8, fill="steelblue") +
+    geom_text(aes(label=count), vjust=-0.3, size=3.5)+
+  ggtitle("Food Security Status") + 
+  xlab("Food Security Status Score") +
+  ylab("Count") +
+  theme_minimal()
+
+
+```
+
+### Finishing up - Update OFB_wide for analysis
+
+```{r}
+
+OFB_wide <- merge(OFB_wide, FSC_Calc)
+
+```
+ 
+### New OFB_wide contains only factors and booleans not text fields
+
+```{r}
+paste("Duplicates: ", anyDuplicated(OFB_wide$id))
+paste("rows", nrow(OFB_wide))
+paste("columns", ncol(OFB_wide))
+
+```
+
+### Write to csv file - if needed
+
+```{r}
+write_csv2(OFB_wide, "OFB_wide.csv") 
+
+```
+
+
+
+

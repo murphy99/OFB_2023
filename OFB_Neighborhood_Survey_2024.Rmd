@@ -1,0 +1,374 @@
+---
+title: "OFB_Neighborhood_Survey_2024"
+author: "Eileen Murphy"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+source("DataDictionary_Questions.R", echo = TRUE, local= knitr::knit_global())
+
+color_scheme = c("green4", "steelblue" ,"orange3", "red3")
+color_scheme = c("blue2", "steelblue" ,"orange3", "red3")
+#color_scheme = c("green4", "yellow3" ,"steelblue", "red3")
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(naniar)
+library(ggrepel)
+library(quarto)
+
+OFB_wide <- read_delim("OFB_wide.csv", delim = ";", 
+    escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+```{r echo=FALSE}
+
+# Function to convert wide to long format for factor fields with a color field such as FS_Status, as an example
+
+wide_to_long_factor_color <- function(df, names_to, values_to, q_, color_field ) {
+df %>%
+  select(all_of(q_)
+         ,all_of(color_field)) |>
+  arrange(q_, color_field) |>
+  pivot_longer(
+    cols = c(q_),
+    names_to = names_to,
+    values_to = values_to,
+    values_drop_na = TRUE
+  ) 
+}
+
+# ggplot function to produce stacked bar charts with color field
+
+factor_color_plot <- function (df, x_axis,legend_name, plot_title, color_field) {
+  print(df)
+  print(x_axis)
+  print(legend_name)
+  print(plot_title)
+  print(color_field)
+  ggplot(df, mapping=aes(x, y=perc, fill=color_field , label = paste0(round(perc, 1), '%')) ) +   geom_col() +
+   scale_fill_manual(name = legend_name, 
+                    values = color_scheme) + 
+  labs(y= "Percentage", x = x_axis, title=plot_title) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  geom_text(size = 3, color="white", position = position_stack(vjust = 0.3)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+```
+   
+     
+        
+#### Overall Food Security
+
+One of the most useful data points in analyzing the Neighborhood Survey is the derived data from the calculation of the Food Security Score. This score uses a methodology established by USDA's Economic Research Service since 1995. 
+    
+The Food Security Score was based on the calculation provided by Ottawa Food Bank that documented -  a six item module: (https://www.ers.usda.gov/media/8282/short2012.pdf) - Giving a score between levels 1-6, and from that score 4 levels were derived from the ranges of the scores. The 4 levels correspond to the results of the calculated scores: 
+
++ Score 1 : High Food Security (Dark Blue)
++ Score 2 : Low Food Security (Lighter Blue)
++ Score 3-4 : Marginal Food Security (Orange)
++ Score 5-6 : Very Low Food Security
+
+The overall composition of the Food Security for the 2024 Survey show 61.3%, that is - more than half of those surveyed are suffering from very lowest food security category being measured. 
+
+
+```{r echo=FALSE}
+
+number_of_clients <- nrow(OFB_wide)
+
+number_of_clients_actual <- sum(!is.na(OFB_wide[, c("FS_Status")]))
+
+OFB_long_temp <- OFB_wide %>%
+  select(FS_Status) |>
+  pivot_longer(
+    cols = c('FS_Status'),
+    names_to = "question",
+    values_to = "options",
+    values_drop_na = TRUE
+  )
+
+OFB_long_temp |>
+  filter(!is.na(options)) |>
+  group_by(question, options )|>
+  summarize(count = n() ,
+            prop = count/number_of_clients, 
+             perc = round(count/number_of_clients * 100,1),
+            .groups = "drop_last") |>
+  filter(!is.na(options)) |>
+  ggplot(mapping = aes(x = options, y = perc, fill=options, label = paste0(round(perc, 1), '%') )) +
+  geom_col() +
+  labs(x="Food Status", y= "Percentage", fill="Food Security Status",
+       title="Overall Food Status",
+       subtitle = paste("Data from",number_of_clients_actual," / ", number_of_clients,  "Clients" )) +
+  scale_fill_manual(name = "Food Security Status", values = color_scheme) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  geom_text(size = 3, color="white", position = position_stack(vjust = 0.3)) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) 
+```
+
+This graph produced in 2018 was provided to us by the Ottawa Food Bank to represent the intake of longitudinal studies in 2018 using both Household Food Security Survey Module (HFSSM) and the Short-Form Health Survey Version 2 (SF-12). The intake surveys were represented in 4 different waves over the 18 months. Below, is the graph that was produced to represent Food Security measures based on these surveys:
+
+#### Past Longitudinal Studies on Food Security, 2018
+
+```{r OFB_Waves, echo=FALSE, fig.cap="Source: (https://bmcpublichealth.biomedcentral.com/articles/10.1186/s12889-021-10841-6)", out.width = '60%'}
+knitr::include_graphics("OFB_Waves.png")
+```
+
+
+#### Updated Graph to show the addition of the 2024 data
+
+```{r echo=FALSE}
+OFB_Waves <- data.frame(Waves=c(1, 2, 3, 4),
+           "High food security"=c(11.4,13.8, 18.1, 17.9),
+           "Low food security" = c(15.6, 16.4, 21.6, 18.3),
+           "Marginal food security" = c(34.5, 38.4, 28.7, 39.2),
+           "Very low food security" = c(38.5, 31.4,31.6,24.6))
+
+# Adding data
+add_latest_survey <- data.frame("Waves" = 5, 
+                               "High food security" = 5.5 , 
+                               "Low food security" = 27.3,
+                               "Marginal food security" = 5.9,
+                              "Very low food security" = 61.3)
+
+ OFB_Waves <- bind_rows(OFB_Waves, add_latest_survey)
+ 
+OFB_Waves_Long <- pivot_longer(OFB_Waves, cols=2:5,
+             names_to = "Food_Security",
+             values_to = "Percentage"
+)
+
+# Try to replicate graph
+
+OFB_Waves_Long |>
+  group_by(Waves, Food_Security) |>
+  #summarize(Percentage = sum(Percentage)) |>
+ggplot(mapping=aes(x= Waves, y=Percentage, color=Food_Security, label = paste0(round(Percentage, 1), '%') )) +
+  geom_label_repel() +
+  geom_point() +
+  geom_line(linewidth=.8) +
+  scale_color_manual(values = color_scheme) +
+  labs(y= "Proportion of Participants",
+       x = "Wave of Data Collection", 
+       title = "Combining Past and Present Longitudinal Studies (2018-2024)",
+       caption = "Source: The impact of novel and traditional food bank approaches on food insecurity: a longitudinal study in Ottawa, Canada") +
+  #theme(legend.position="bottom")
+  theme(axis.text.x = element_text(angle = 0, hjust = 0),legend.position="bottom",axis.text=element_text(size=8), legend.text = element_text(size=6))
+  
+
+```
+
+By adding a 5th wave to the above graph, we are able to compare the changes of Food Security by replicating the graph and using the same criteria to measure Food Security. The addition of the data from the 2924 survey is represented in "Wave 5"
+
+As we can see the most severe measured Food Insecurity has increased 36.7 %, while the next level up in food security decreased in almost the same amount in the opposite direction by 33.3%. The people experiencing the highest food security slipped by 12.4%, while the next lower level of food security increased by 9%.
+
+The stresses of food insecurity can be seen visually by the downward pressure on the highest food security giving way to a rising lower (Low) food insecurity and in the same way the decrease in the marginal level of food security is appears to inversely increase the highest food insecurity. 
+
+
+#### Food Security vs. How Long it Takes to Get to Food Bank
+
+```{r echo=FALSE, warning=FALSE}
+
+number_of_clients <- nrow(OFB_wide)
+
+number_of_clients_q015_actual <- sum(!is.na(OFB_wide[, c("q015")]))
+
+OFB_wide$q015 <- factor(OFB_wide$q015,  levels=c("Less Than 30 Minutes","30-60 Minutes","60-90 Minutes", "More Than 90 Minutes", "Prefer Not To Answer"))
+
+
+OFB_long_temp <- wide_to_long_factor_color(OFB_wide, "question", "options", "q015", "FS_Status") 
+
+OFB_long_temp <- OFB_long_temp |>
+  replace_with_na(replace = list(options =  c("I Don't Know Its Address.", "I Don't Know Anything About Them And Where They Are"))) 
+  
+OFB_long_temp <- OFB_long_temp |>
+  filter(!is.na(options)) |>
+  group_by(options, FS_Status )|>
+  summarize(count = n() ,
+            perc = round(count/number_of_clients * 100,2),
+            .groups = "drop")
+  
+  ggplot(OFB_long_temp, mapping=aes(x=options, y=perc, fill=FS_Status, label = paste0(round(perc, 1), '%' )) ) + 
+  geom_col() +
+   scale_fill_manual(name = "Food Security Status", 
+                    values = color_scheme) + 
+  labs(y= "Percentage", x = "Time",
+       title = "Time to get to Food Bank",
+       subtitle = paste("Data from",number_of_clients_q015_actual," / ", number_of_clients,  "Clients") ) +
+  #geom_text(aes(label = perc), vjust = 1.5, colour = "white") +
+  #geom_text(size = 4, position = position_stack(vjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  geom_text(size = 3, color="white", position = position_stack(vjust = 0.3)) +
+  #theme(axis.text.x = element_text(angle = 45, hjust = 1))  +
+  #theme(legend.position="bottom") 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.position="bottom",axis.text=element_text(size=8), legend.text = element_text(size=6))
+    
+
+```
+
+The longer it takes to get to the food bank, the less likely they are experiencing "High" food security. Instead we see less of "Low" food security and more "Very low" food security proportionally when the food bank is 60 minutes or more away.
+
+#### Food Security vs Health Barriers
+
+```{r echo=FALSE}
+
+number_of_clients <- nrow(OFB_wide)
+
+number_of_clients_barriers_actual <- sum(!is.na(OFB_wide[, c("q039a","q039b", "q039c", "q039d", "q039e", "q039g", "q039h")])) / 7
+
+
+OFB_long_temp <- OFB_wide %>%
+ filter(q039a +
+          q039b +
+          q039c +
+          q039d +
+          q039e +
+          q039f +
+          q039g +
+          q039h 
+        > 0) |> 
+ select(q039a, q039b, q039c, q039d, q039e, q039f, q039g, q039h, FS_Status)
+
+names(OFB_long_temp)[1] <- paste(questions["q039a"]) 
+ names(OFB_long_temp)[2] <- paste(questions["q039b"]) 
+ names(OFB_long_temp)[3] <- paste(questions["q039c"]) 
+ names(OFB_long_temp)[4] <- paste(questions["q039d"]) 
+ names(OFB_long_temp)[5] <- paste(questions["q039e"]) 
+ names(OFB_long_temp)[6] <- paste(questions["q039f"]) 
+ names(OFB_long_temp)[7] <- paste(questions["q039g"]) 
+ names(OFB_long_temp)[8] <- paste(questions["q039h"]) 
+ 
+ 
+ OFB_long_temp <- OFB_long_temp |>    
+  pivot_longer(-FS_Status,
+    names_to = "barriers",
+    values_to = "answer"
+  )
+ 
+OFB_long_temp |>
+  group_by(barriers, FS_Status )|>
+  summarize(count = sum(answer),
+            prop = count, 
+            perc = round(count/number_of_clients * 100,1),
+            .groups = "drop") |>
+  ggplot(mapping=aes(x=barriers, y=perc, fill=factor(FS_Status), label = paste0(round(perc, 1), '%'))) + 
+  scale_fill_manual(name = "Food Security Status", 
+                    values = color_scheme) +
+  geom_col() +
+  labs(x= "Barriers", y = "Percentage",
+       title="Health Barriers",
+       subtitle = paste("Data from", number_of_clients_barriers_actual, "/", number_of_clients," Clients")
+       ) +
+  scale_y_continuous(labels = scales::percent_format(scale = 2)) +
+  geom_text(size = 3, color="white", position = position_stack(vjust = 0.3)) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.position="bottom",axis.text=element_text(size=8), legend.text = element_text(size=6))
+  #theme(legend.position="bottom") +
+  #theme(axis.text=element_text(size=8), legend.text = element_text(size=6))
+  
+```
+
+Comparing the "None Of The Above" and the "Prefer Not To Answer" with the other health barriers, we can see that the other categories have razor thin or no "Marginal" and/or "High" food security.
+
+#### Food Security vs Housing
+
+```{r echo=FALSE}
+
+number_of_clients <- nrow(OFB_wide)
+
+#number_of_clients_actual <- sum(!is.na(OFB_wide[, c("q040a")]))
+
+OFB_long_temp <- wide_to_long_factor_color(OFB_wide, "question", "options", "q040a", "FS_Status") 
+
+number_of_clients_actual <- sum(!is.na(OFB_wide[, c("q040a")]))
+
+OFB_long_temp <- OFB_long_temp |> 
+  replace_with_na(replace = list(options =  c("I Don't Know Its Address.", "I Don't Know Anything About Them And Where They Are"))) 
+
+OFB_long_temp |>
+  filter(!is.na(options) & !(options %in% c("Group Home/Youth Shelter",
+                                          "On The Street",
+                                          "Other (Please Specify)",
+                                          "Prefer Not To Answer",
+                                          "Other") )) |>
+  #arrange(options) |>
+  group_by(options, FS_Status )|>
+  summarize(count = n() ,
+            prop = count, 
+            #FSC = mean(FSC), 
+            perc = round(count/number_of_clients * 100,1),
+            .groups = "drop") |>
+  filter(!is.na(options)) -> total_result 
+
+number_of_clients_actual <- summarize(total_result, 
+          actual_count <- sum(count))
+
+#distinct(total_result)
+
+
+
+#number_of_clients_actual <- sum(!is.na(total_result$count))
+  
+ggplot(total_result, mapping=aes(x=options, y=perc, fill=FS_Status, label = paste0(round(perc, 1), '%')) ) + 
+  geom_col() +
+   scale_fill_manual(name = "Food Security Status", 
+                    values = color_scheme) + 
+  labs(y= "Percentage", x = "Housing",
+       title="Housing",
+       subtitle= paste("Data From",number_of_clients_actual,"/", number_of_clients, "Clients" ), caption = "Housing not because of low representation: Group Home/Youth Shelter, On The Street, Other (Please Specify), Prefer Not To Answer, Other") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  geom_text(size = 3, color="white", position = position_stack(vjust = 0.3)) +
+  #theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.position="bottom",axis.text=element_text(size=8), legend.text = element_text(size=6))
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.position="bottom",axis.text=element_text(size=8), legend.text = element_text(size=6))
+
+
+```
+
+
+
+Based on the lack of stratification of Food Security - we can see there is minimal to no "High" or none to minimal "Marginal" food security for Rooming Houses, Shelters, Social Rental Housing, and people staying with friends or family. The people staying with family and friends showing the most resilience.
+
+#### Isolating the categories with the least stratification:
+
+```{r echo=FALSE}
+OFB_long_temp |>
+  filter(!is.na(options) & options %in% c("Shelter",
+                                          "Rooming House",
+                                          "Social Housing",
+                                          "Supportive Housing",
+                                          "With Family Or Friends") ) |>
+  #arrange(options) |>
+  group_by(options, FS_Status )|>
+  summarize(count = n() ,
+            prop = count, 
+            #FSC = mean(FSC), 
+            perc = round(count/number_of_clients * 100,1),
+            .groups = "drop") |>
+  filter(!is.na(options)) -> total_result
+
+number_of_clients_actual <- summarize(total_result, 
+          actual_count <- sum(count))
+  
+ggplot(total_result, mapping=aes(x=options, y=perc, fill=FS_Status, label = paste0(round(perc, 1), '%')) ) + 
+  geom_col() +
+   scale_fill_manual(name = "Food Security Status", 
+                    values = color_scheme) + 
+  labs(y= "Percentage", x = "Housing",
+       title="Housing",
+       subtitle= paste("Data From",number_of_clients_actual,"/ ", number_of_clients, "Clients" )) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  geom_text(size = 3, color="white", position = position_stack(vjust = 0.3)) +
+  #theme(axis.text.x = element_text(angle = 65, hjust = 1)) +
+  #theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.position="bottom",axis.text=element_text(size=8), legend.text = element_text(size=6))
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),legend.position="bottom",axis.text=element_text(size=8), legend.text = element_text(size=6))
+
+
+```
+
+By studying and doing further analysis of the stratification layers against the overall profile in the first plot - we can begin to understand the existing situations, causes, and life-styles that affect people and their well-being.
